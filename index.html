@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colagem Instagram</title>
+<style>
+  :root {
+    --bg: #f4f4f6;
+    --panel: #ffffff;
+    --text: #1d1d22;
+    --muted: #6b6b76;
+    --border: #e2e2e8;
+    --accent: #d6336c;
+    --accent-soft: #fde7ef;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: 100vh;
+  }
+  aside {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  h1 { font-size: 18px; margin: 0; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .seg button, .btn {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+  }
+  .seg button small { display: block; color: var(--muted); font-size: 11px; }
+  .seg button.on { border-color: var(--accent); background: var(--accent-soft); }
+  .btn:hover, .seg button:hover { border-color: #c9c9d2; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; width: 100%; padding: 11px; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  .drop {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .tray { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+  .thumb { position: relative; aspect-ratio: 1; border-radius: 6px; overflow: hidden; cursor: grab; background: #ddd; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+  .thumb button {
+    position: absolute; top: 2px; right: 2px;
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 0; background: rgba(0,0,0,.6); color: #fff; cursor: pointer; line-height: 20px; padding: 0; font-size: 13px;
+  }
+  .thumb .n { position: absolute; left: 3px; bottom: 2px; color: #fff; font-size: 11px; font-weight: 700; text-shadow: 0 0 3px #000; }
+
+  .layouts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .layouts button {
+    border: 2px solid var(--border); border-radius: 6px; padding: 3px; background: var(--panel); cursor: pointer;
+  }
+  .layouts button.on { border-color: var(--accent); }
+  .layouts svg { display: block; width: 100%; height: auto; }
+
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .row label { flex: 0 0 90px; color: var(--muted); }
+  .row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .row output { width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+  .row input[type=color] { width: 40px; height: 28px; border: 1px solid var(--border); border-radius: 6px; padding: 0; background: none; }
+
+  .cellbox { border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .cellbox .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .hint { color: var(--muted); font-size: 12px; margin: 0; }
+
+  main {
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; overflow: hidden; position: relative;
+  }
+  #stage {
+    max-width: 100%;
+    max-height: calc(100vh - 48px);
+    box-shadow: 0 6px 30px rgba(0,0,0,.12);
+    background: #fff;
+    touch-action: none;
+    cursor: grab;
+  }
+  #stage.dragging { cursor: grabbing; }
+  .empty {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); pointer-events: none; text-align: center;
+  }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 760px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto auto; height: auto; }
+    aside { border-right: 0; border-bottom: 1px solid var(--border); }
+    #stage { max-height: 80vh; }
+  }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Colagem Instagram</h1>
+
+  <section>
+    <h2>Formato</h2>
+    <div class="seg" id="formats">
+      <button data-f="feed" class="on">Feed<small>1080 × 1350</small></button>
+      <button data-f="story">Story<small>1080 × 1920</small></button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Fotos</h2>
+    <div class="drop" id="drop">Clique ou arraste as fotos aqui</div>
+    <input type="file" id="file" accept="image/*" multiple hidden>
+    <div class="tray" id="tray"></div>
+    <p class="hint" style="margin-top:8px">Arraste uma miniatura para um quadro da colagem para colocá-la ali.</p>
+  </section>
+
+  <section>
+    <h2>Layout</h2>
+    <div class="layouts" id="layouts"></div>
+  </section>
+
+  <section>
+    <h2>Estilo</h2>
+    <div class="row"><label>Espaçamento</label><input type="range" id="gap" min="0" max="80" value="16"><output id="gapV">16</output></div>
+    <div class="row"><label>Margem</label><input type="range" id="margin" min="0" max="120" value="16"><output id="marginV">16</output></div>
+    <div class="row"><label>Cantos</label><input type="range" id="radius" min="0" max="80" value="0"><output id="radiusV">0</output></div>
+    <div class="row"><label>Fundo</label><input type="color" id="bgc" value="#ffffff"></div>
+  </section>
+
+  <section class="cellbox" id="cellbox" hidden>
+    <h2>Quadro selecionado</h2>
+    <div class="row"><label>Zoom</label><input type="range" id="zoom" min="1" max="4" step="0.01" value="1"><output id="zoomV">1.0×</output></div>
+    <div class="actions">
+      <button class="btn" id="center">Centralizar</button>
+      <button class="btn" id="prevImg">◀ Foto</button>
+      <button class="btn" id="nextImg">Foto ▶</button>
+    </div>
+  </section>
+
+  <p class="hint">
+    <b>Arrastar</b> na foto: reposiciona dentro do quadro.<br>
+    <b>Roda do mouse</b>: zoom.<br>
+    <b>Shift + arrastar</b> até outro quadro: troca as fotos de lugar.
+  </p>
+
+  <section>
+    <h2>Exportar</h2>
+    <div class="seg" id="exportFmt" style="margin-bottom:8px">
+      <button data-t="image/jpeg" class="on">JPG</button>
+      <button data-t="image/png">PNG</button>
+    </div>
+    <button class="btn primary" id="export" disabled>Baixar imagem</button>
+  </section>
+</aside>
+
+<main>
+  <canvas id="stage"></canvas>
+  <div class="empty" id="empty">Adicione fotos para montar a colagem</div>
+</main>
+
+<script>
+const FORMATS = { feed: [1080, 1350], story: [1080, 1920] };
+
+const state = {
+  format: 'feed',
+  images: [],          // { id, img, url }
+  cells: [],           // { imgId, zoom, fx, fy }  fx/fy = foco 0..1
+  layoutIdx: 0,
+  gap: 16, margin: 16, radius: 0, bg: '#ffffff',
+  selected: -1,
+  exportType: 'image/jpeg',
+};
+let nextId = 1;
+
+/* ---------- Layouts ---------- */
+// rows([1,2]) = 1 foto na primeira linha, 2 na segunda. Retorna retângulos fracionários [x,y,w,h].
+function rows(counts, weights) {
+  const total = (weights || counts.map(() => 1)).reduce((a, b) => a + b, 0);
+  const out = []; let y = 0;
+  counts.forEach((c, i) => {
+    const h = (weights ? weights[i] : 1) / total;
+    for (let j = 0; j < c; j++) out.push([j / c, y, 1 / c, h]);
+    y += h;
+  });
+  return out;
+}
+function cols(counts, weights) {
+  return rows(counts, weights).map(([x, y, w, h]) => [y, x, h, w]);
+}
+// Uma foto grande + o restante em coluna/linha
+function bigLeft(n) {
+  const r = n - 1, out = [[0, 0, 2 / 3, 1]];
+  for (let i = 0; i < r; i++) out.push([2 / 3, i / r, 1 / 3, 1 / r]);
+  return out;
+}
+function bigTop(n) {
+  const r = n - 1, out = [[0, 0, 1, 0.6]];
+  for (let i = 0; i < r; i++) out.push([i / r, 0.6, 1 / r, 0.4]);
+  return out;
+}
+function bigTopGrid(n) {
+  const r = n - 1, perRow = Math.ceil(r / 2), out = [[0, 0, 1, 0.5]];
+  const rest = rows([perRow, r - perRow]).map(([x, y, w, h]) => [x, 0.5 + y * 0.5, w, h * 0.5]);
+  return out.concat(rest);
+}
+// Fotos horizontais (3:2) empilhadas e centralizadas, com o fundo aparecendo em volta
+function landscape(n, ratio = 3 / 2) {
+  const [W, H] = FORMATS[state.format];
+  const iw = W - 2 * state.margin, ih = H - 2 * state.margin;
+  const hPx = Math.min(iw / ratio, ih / n), wPx = hPx * ratio;
+  const w = wPx / iw, h = hPx / ih, x = (1 - w) / 2, y0 = (1 - h * n) / 2;
+  return Array.from({ length: n }, (_, i) => [x, y0 + i * h, w, h]);
+}
+function grid(n) {
+  const c = Math.ceil(Math.sqrt(n)), counts = [];
+  let left = n;
+  while (left > 0) { counts.push(Math.min(c, left)); left -= c; }
+  return rows(counts);
+}
+
+function layoutsFor(n) {
+  if (n <= 0) return [];
+  const L = {
+    1: [rows([1])],
+    2: [rows([1, 1]), cols([1, 1]), rows([1, 1], [2, 1]), landscape(2)],
+    3: [rows([1, 2]), rows([2, 1]), rows([1, 1, 1]), cols([1, 2]), cols([1, 1, 1]), bigTop(3), landscape(3)],
+    4: [rows([2, 2]), bigTop(4), bigLeft(4), rows([1, 2, 1]), rows([1, 1, 1, 1]), cols([1, 3])],
+    5: [rows([2, 3]), rows([3, 2]), bigTopGrid(5), bigLeft(5), cols([2, 3]), rows([1, 2, 2])],
+    6: [rows([2, 2, 2]), rows([3, 3]), bigTop(6), bigTopGrid(6), rows([1, 2, 3]), cols([3, 3])],
+    7: [rows([2, 3, 2]), rows([3, 1, 3]), bigTopGrid(7), rows([1, 3, 3])],
+    8: [rows([2, 2, 2, 2]), rows([3, 2, 3]), bigTopGrid(8), rows([4, 4])],
+    9: [rows([3, 3, 3]), rows([2, 3, 2, 2]), bigTopGrid(9)],
+  }[n];
+  return L || [grid(n), rows(Array.from({ length: Math.ceil(n / 3) }, (_, i) => Math.min(3, n - i * 3)))];
+}
+
+function currentLayout() {
+  const list = layoutsFor(state.images.length);
+  if (state.layoutIdx >= list.length) state.layoutIdx = 0;
+  return list[state.layoutIdx] || [];
+}
+
+/* ---------- Geometria ---------- */
+function cellRects() {
+  const [W, H] = FORMATS[state.format];
+  const m = state.margin, g = state.gap / 2, e = 1e-6;
+  const iw = W - 2 * m, ih = H - 2 * m;
+  return currentLayout().map(([fx, fy, fw, fh]) => {
+    let x = m + fx * iw, y = m + fy * ih, x2 = m + (fx + fw) * iw, y2 = m + (fy + fh) * ih;
+    if (fx > e) x += g;
+    if (fy > e) y += g;
+    if (fx + fw < 1 - e) x2 -= g;
+    if (fy + fh < 1 - e) y2 -= g;
+    return { x, y, w: Math.max(1, x2 - x), h: Math.max(1, y2 - y) };
+  });
+}
+
+function syncCells() {
+  const n = currentLayout().length;
+  const ids = state.images.map(i => i.id);
+  // Mantém as fotos já posicionadas e preenche o resto com as que faltam
+  state.cells = state.cells.filter(c => ids.includes(c.imgId));
+  const used = new Set(state.cells.map(c => c.imgId));
+  for (const id of ids) if (!used.has(id)) state.cells.push(newCell(id));
+  state.cells.length = Math.min(state.cells.length, n);
+  if (state.selected >= n) state.selected = -1;
+}
+function newCell(imgId) { return { imgId, zoom: 1, fx: 0.5, fy: 0.5 }; }
+
+function imgById(id) { return state.images.find(i => i.id === id); }
+
+// Calcula como a foto é desenhada dentro do quadro (modo "cover" + zoom + foco)
+function placement(cell, r) {
+  const im = imgById(cell.imgId).img;
+  const s = Math.max(r.w / im.naturalWidth, r.h / im.naturalHeight) * cell.zoom;
+  const dw = im.naturalWidth * s, dh = im.naturalHeight * s;
+  return { dw, dh, ox: dw - r.w, oy: dh - r.h, dx: r.x - (dw - r.w) * cell.fx, dy: r.y - (dh - r.h) * cell.fy };
+}
+
+/* ---------- Renderização ---------- */
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+
+function roundPath(c, r, rad) {
+  rad = Math.min(rad, r.w / 2, r.h / 2);
+  c.beginPath();
+  c.roundRect ? c.roundRect(r.x, r.y, r.w, r.h, rad) : c.rect(r.x, r.y, r.w, r.h);
+}
+
+function draw(c, forExport) {
+  const [W, H] = FORMATS[state.format];
+  c.canvas.width = W; c.canvas.height = H;
+  c.fillStyle = state.bg; c.fillRect(0, 0, W, H);
+  const rects = cellRects();
+  rects.forEach((r, i) => {
+    const cell = state.cells[i];
+    c.save();
+    roundPath(c, r, state.radius);
+    c.clip();
+    if (cell && imgById(cell.imgId)) {
+      const p = placement(cell, r);
+      c.imageSmoothingQuality = 'high';
+      c.drawImage(imgById(cell.imgId).img, p.dx, p.dy, p.dw, p.dh);
+    } else {
+      c.fillStyle = '#e8e8ec'; c.fill();
+    }
+    c.restore();
+    if (!forExport && (i === state.selected || i === dropTarget)) {
+      c.save();
+      roundPath(c, r, state.radius);
+      c.lineWidth = 8;
+      c.strokeStyle = i === dropTarget ? '#2b8a3e' : '#d6336c';
+      c.setLineDash(i === dropTarget ? [24, 14] : []);
+      c.stroke();
+      c.restore();
+    }
+  });
+}
+
+function render() {
+  draw(ctx, false);
+  document.getElementById('empty').hidden = state.images.length > 0;
+  document.getElementById('export').disabled = state.images.length === 0;
+  const box = document.getElementById('cellbox');
+  const cell = state.cells[state.selected];
+  box.hidden = !cell;
+  if (cell) {
+    zoomEl.value = cell.zoom;
+    document.getElementById('zoomV').textContent = cell.zoom.toFixed(1) + '×';
+  }
+}
+
+function renderLayouts() {
+  const el = document.getElementById('layouts');
+  el.innerHTML = '';
+  const [W, H] = FORMATS[state.format];
+  layoutsFor(state.images.length).forEach((lay, idx) => {
+    const b = document.createElement('button');
+    if (idx === state.layoutIdx) b.className = 'on';
+    const vw = 40, vh = 40 * H / W, p = 1.5;
+    b.innerHTML = `<svg viewBox="0 0 ${vw} ${vh}">` + lay.map(([x, y, w, h]) =>
+      `<rect x="${x * vw + p / 2}" y="${y * vh + p / 2}" width="${w * vw - p}" height="${h * vh - p}" rx="1" fill="#c9c9d2"/>`
+    ).join('') + '</svg>';
+    b.onclick = () => { state.layoutIdx = idx; state.selected = -1; syncCells(); renderLayouts(); render(); };
+    el.appendChild(b);
+  });
+}
+
+function renderTray() {
+  const tray = document.getElementById('tray');
+  tray.innerHTML = '';
+  state.images.forEach((im, i) => {
+    const d = document.createElement('div');
+    d.className = 'thumb';
+    d.draggable = true;
+    d.innerHTML = `<img src="${im.url}"><span class="n">${i + 1}</span><button title="Remover">×</button>`;
+    d.addEventListener('dragstart', e => { e.dataTransfer.setData('text/x-img', String(im.id)); e.dataTransfer.effectAllowed = 'move'; });
+    d.querySelector('button').onclick = () => removeImage(im.id);
+    tray.appendChild(d);
+  });
+}
+
+function refreshAll() { syncCells(); renderTray(); renderLayouts(); render(); }
+
+/* ---------- Upload ---------- */
+const fileEl = document.getElementById('file');
+const dropEl = document.getElementById('drop');
+dropEl.onclick = () => fileEl.click();
+fileEl.onchange = () => { addFiles(fileEl.files); fileEl.value = ''; };
+['dragover', 'dragenter'].forEach(t => dropEl.addEventListener(t, e => { e.preventDefault(); dropEl.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => dropEl.addEventListener(t, () => dropEl.classList.remove('over')));
+dropEl.addEventListener('drop', e => { e.preventDefault(); addFiles(e.dataTransfer.files); });
+
+function addFiles(files) {
+  const list = [...files].filter(f => f.type.startsWith('image/'));
+  Promise.all(list.map(f => new Promise(res => {
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => res({ id: nextId++, img, url });
+    img.onerror = () => { URL.revokeObjectURL(url); res(null); };
+    img.src = url;
+  }))).then(items => {
+    state.images.push(...items.filter(Boolean));
+    state.layoutIdx = 0;
+    refreshAll();
+  });
+}
+
+function removeImage(id) {
+  const im = imgById(id);
+  if (im) URL.revokeObjectURL(im.url);
+  state.images = state.images.filter(i => i.id !== id);
+  state.layoutIdx = 0;
+  state.selected = -1;
+  refreshAll();
+}
+
+/* ---------- Interação no canvas ---------- */
+function toCanvas(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * canvas.width / r.width, y: (e.clientY - r.top) * canvas.height / r.height };
+}
+function hit(pt) {
+  return cellRects().findIndex(r => pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h);
+}
+
+let drag = null, dropTarget = -1;
+
+canvas.addEventListener('pointerdown', e => {
+  const pt = toCanvas(e), i = hit(pt);
+  state.selected = i;
+  if (i >= 0 && state.cells[i]) {
+    drag = { i, last: pt, swap: e.shiftKey };
+    canvas.setPointerCapture(e.pointerId);
+    canvas.classList.add('dragging');
+  }
+  render();
+});
+canvas.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const pt = toCanvas(e);
+  if (drag.swap) {
+    const t = hit(pt);
+    dropTarget = t !== drag.i ? t : -1;
+  } else {
+    const cell = state.cells[drag.i], r = cellRects()[drag.i], p = placement(cell, r);
+    if (p.ox > 0) cell.fx = clamp(cell.fx - (pt.x - drag.last.x) / p.ox, 0, 1);
+    if (p.oy > 0) cell.fy = clamp(cell.fy - (pt.y - drag.last.y) / p.oy, 0, 1);
+    drag.last = pt;
+  }
+  render();
+});
+function endDrag() {
+  if (drag && drag.swap && dropTarget >= 0 && state.cells[dropTarget]) {
+    const c = state.cells;
+    [c[drag.i], c[dropTarget]] = [c[dropTarget], c[drag.i]];
+    state.selected = dropTarget;
+  }
+  drag = null; dropTarget = -1;
+  canvas.classList.remove('dragging');
+  render();
+}
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+
+canvas.addEventListener('wheel', e => {
+  const i = hit(toCanvas(e));
+  if (i < 0 || !state.cells[i]) return;
+  e.preventDefault();
+  state.selected = i;
+  const cell = state.cells[i];
+  cell.zoom = clamp(cell.zoom * (e.deltaY < 0 ? 1.06 : 1 / 1.06), 1, 4);
+  render();
+}, { passive: false });
+
+// Soltar miniatura da bandeja em um quadro
+canvas.addEventListener('dragover', e => {
+  if (![...e.dataTransfer.types].includes('text/x-img')) return;
+  e.preventDefault();
+  const t = hit(toCanvas(e));
+  if (t !== dropTarget) { dropTarget = t; render(); }
+});
+canvas.addEventListener('dragleave', () => { dropTarget = -1; render(); });
+canvas.addEventListener('drop', e => {
+  e.preventDefault();
+  const id = Number(e.dataTransfer.getData('text/x-img'));
+  const t = hit(toCanvas(e));
+  dropTarget = -1;
+  if (t >= 0 && id) placeImage(id, t);
+  render();
+});
+
+// Coloca a foto no quadro t. Se ela já estava em outro quadro, troca de lugar.
+function placeImage(id, t) {
+  const c = state.cells;
+  const from = c.findIndex(x => x.imgId === id);
+  if (from === t) return;
+  if (from >= 0) [c[from], c[t]] = [c[t], c[from]];
+  else c[t] = newCell(id);
+  state.selected = t;
+}
+
+/* ---------- Controles ---------- */
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+document.querySelectorAll('#formats button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#formats button').forEach(x => x.classList.toggle('on', x === b));
+  state.format = b.dataset.f;
+  renderLayouts(); render();
+});
+document.querySelectorAll('#exportFmt button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#exportFmt button').forEach(x => x.classList.toggle('on', x === b));
+  state.exportType = b.dataset.t;
+});
+
+for (const k of ['gap', 'margin', 'radius']) {
+  const el = document.getElementById(k);
+  el.oninput = () => { state[k] = Number(el.value); document.getElementById(k + 'V').textContent = el.value; if (k === 'margin') renderLayouts(); render(); };
+}
+document.getElementById('bgc').oninput = e => { state.bg = e.target.value; render(); };
+
+const zoomEl = document.getElementById('zoom');
+zoomEl.oninput = () => {
+  const cell = state.cells[state.selected];
+  if (cell) { cell.zoom = Number(zoomEl.value); render(); }
+};
+document.getElementById('center').onclick = () => {
+  const cell = state.cells[state.selected];
+  if (cell) { Object.assign(cell, { zoom: 1, fx: 0.5, fy: 0.5 }); render(); }
+};
+function cycleImage(dir) {
+  const cell = state.cells[state.selected];
+  if (!cell || state.images.length < 2) return;
+  const idx = state.images.findIndex(i => i.id === cell.imgId);
+  const next = state.images[(idx + dir + state.images.length) % state.images.length];
+  placeImage(next.id, state.selected);
+  render();
+}
+document.getElementById('prevImg').onclick = () => cycleImage(-1);
+document.getElementById('nextImg').onclick = () => cycleImage(1);
+
+document.getElementById('export').onclick = () => {
+  const off = document.createElement('canvas');
+  draw(off.getContext('2d'), true);
+  off.toBlob(blob => {
+    const a = document.createElement('a');
+    const ext = state.exportType === 'image/png' ? 'png' : 'jpg';
+    a.href = URL.createObjectURL(blob);
+    a.download = `colagem-${state.format}-${Date.now()}.${ext}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, state.exportType, 0.95);
+};
+
+refreshAll();
+</script>
+</body>
+</html>
